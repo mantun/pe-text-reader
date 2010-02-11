@@ -32,7 +32,7 @@ class TextForm : System.Windows.Forms.Form {
             bookFile = value;
             if (bookFile != null) {
                 setBookmarkMenuItem.Enabled = true;
-                panel.RowProvider = new CachingRowProvider(bookFile.RowProvider, 100);
+                panel.RowProvider = new CachingRowProvider(bookFile.RowProvider, 300);
                 if (bookFile.Index.Autosave != null) {
                     panel.Position = bookFile.Index.Autosave.Position;
                 }

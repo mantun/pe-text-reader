@@ -78,7 +78,7 @@ public abstract class BookFile : IDisposable {
         if (file.Extension == ".txt") {
             return new PlainTextFile(file);
         }
-        return null;
+        return new PlainTextFile(file);
     }
     public IScrollable<Token> Parser {
         get {
@@ -141,7 +141,7 @@ public class PlainTextFile : BookFile {
         if (stream != null) {
             stream.Dispose();
         }
-        stream = new FileStream(file.FullName, FileMode.Open);
+        stream = new FileStream(file.FullName, FileMode.Open, FileAccess.Read, FileShare.Read);
         return new PlainTextParser(stream);
     }
     protected override RowProvider createRowProvider() {
