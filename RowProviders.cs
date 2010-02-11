@@ -57,22 +57,24 @@ public class PlainTextRowProvider : RowProviderBase, IDisposable {
         if (parser.Current.Equals(Token.DOCUMENT, TokenType.Begin)) {
             parser.ToNext();
         }
-        if (parser.Current.Equals(Token.PARAGRAPH, TokenType.Begin)) {
+        bool startP = parser.Current.Equals(Token.PARAGRAPH, TokenType.Begin);
+        if (startP) {
             parser.ToNext();
         }
         if (parser.IsLast) {
-            return null;
+            throw new ArgumentException("Cannot build row from EOS");
         }
         while (true) {
             if (parser.Current.Equals(Token.PARAGRAPH, TokenType.End)) {
                 parser.ToNext();
                 return new PlainTextRow(text, this);
             }
-            string t = text;
-            if (t.Length > 0){
-                t += ' ';
+            string t;
+            if (text.Length == 0 && !startP) {
+                t = parser.Current.Text.TrimStart();
+            } else {
+                t = expandTabs(text + parser.Current.Text, 4);
             }
-            t += parser.Current.Text;
             if (textWidth(t) < width) {
                 parser.ToNext();
                 text = t;
@@ -176,13 +178,20 @@ public class PlainTextRowProvider : RowProviderBase, IDisposable {
             GDI.SelectObject(measuringDC, hFont);
             rowHeight = calcRowHeight();
             Position pos = rowPos.First.Value;
-!            rowPos.Clear();
+            rowPos.Clear();
             rowPos.AddLast(pos);
             parser.Position = pos;
             currentRow = buildRow();
         }
     }
 
+    private string expandTabs(string s, int tabSize) {
+        int i;
+        while ((i = s.IndexOf("\t")) >= 0) {
+            s = s.Replace("\t", new string(' ', tabSize - i % tabSize));
+        }
+        return s;
+    }
     private class PlainTextRow : Row {
         private string text;
         private PlainTextRowProvider parent;

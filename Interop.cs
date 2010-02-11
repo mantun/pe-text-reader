@@ -9,6 +9,7 @@ public class GDI {
     public const int DT_NOCLIP = 0x00000100;
     public const int DT_NOPREFIX = 0x00000800;
     public const int DT_CALCRECT = 0x00000400;
+    public const int DT_TABSTOP = 0x00000080;
 #if PPC
     [DllImport("coredll.dll")]
 #else

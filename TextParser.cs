@@ -52,7 +52,7 @@ class SeekableStreamReader : StreamReader, ISeekable<long> {
 
     public SeekableStreamReader(Stream stream, bool detectEncodingFromByteOrderMarks) : base(stream, detectEncodingFromByteOrderMarks) { 
         if (!stream.CanSeek) {
-            throw new ArgumentException("stream is not seekable");
+            throw new ArgumentException("Stream is not seekable");
         }
         stream.Seek(0, SeekOrigin.Begin);
     }
@@ -226,6 +226,82 @@ class BufferedCharProvider : IScrollable<char> {
     }
 }
 
+public class NewLineNormalizer : IScrollable<char> {
+    private IScrollable<char> charProvider;
+    private char current;
+    private State state;
+    private enum State { NewLineStart, NewLineEnd, AChar }
+    public NewLineNormalizer(IScrollable<char> charProvider) {
+        this.charProvider = charProvider;
+        this.current = fetchForward();
+    }
+    public char Current { get { return current; } }
+    public bool IsFirst { get { return charProvider.IsFirst; } }
+    public bool IsLast { get { return charProvider.IsLast; } }
+    public void ToPrev() {
+        if (state == State.NewLineEnd) {
+            charProvider.ToPrev();
+        }
+        charProvider.ToPrev();
+        current = fetchBackward();
+    }
+    public void ToNext() {
+        if (state == State.NewLineStart) {
+            charProvider.ToNext();
+        }
+        charProvider.ToNext();
+        current = fetchForward();
+    }
+    public Position Position {
+        get {
+            return new Pos() { state = state, pos = charProvider.Position };
+        }
+        set {
+            Pos p = (Pos) value;
+            charProvider.Position = p.pos;
+            state = p.state;
+        }
+    }
+    private class Pos : Position {
+        public State state;
+        public Position pos;
+    }
+    private char fetchForward() {
+        state = State.AChar;
+        if (charProvider.Current == '\r') {
+            if (!charProvider.IsLast) {
+                charProvider.ToNext();
+                if (charProvider.Current == '\n') {
+                    state = State.NewLineEnd;
+                } else {
+                    charProvider.ToPrev();
+                }
+            }
+            return '\n';
+        } else {
+            return charProvider.Current;
+        }
+    }
+    private char fetchBackward() {
+        state = State.AChar;
+        if (charProvider.Current == '\n') {
+            if (!charProvider.IsFirst) {
+                charProvider.ToPrev();
+                if (charProvider.Current != '\r') {
+                    state = State.NewLineStart;
+                } else {
+                    charProvider.ToNext();
+                }
+            }
+            return '\n';
+        } if (charProvider.Current == '\r') {
+            return '\n';
+        } else {
+            return charProvider.Current;
+        }
+    }
+}
+
 public class WhiteSpaceTokenizer : IScrollable<string>, IDisposable {
     private SeekableStreamReader reader;
     private IScrollable<char> charProvider;
@@ -290,10 +366,12 @@ public class WhiteSpaceTokenizer : IScrollable<string>, IDisposable {
     private delegate bool Skip();
     private string fetchWord(Skip skip, string doubleNL, ref Position start, ref Position end) {
         start = charProvider.Position;
+        string s = "";
         while (isWhiteSpace()) {
+            s += charProvider.Current;
             if (!skip()) {
                 end = charProvider.Position;
-                return "";
+                return s;
             }
         }
         if (isNewLine()) {
@@ -306,14 +384,8 @@ public class WhiteSpaceTokenizer : IScrollable<string>, IDisposable {
             end = charProvider.Position;
             return "\n";
         }
-        string s = "";
         while (!Char.IsWhiteSpace(charProvider.Current)) {
             s += charProvider.Current;
-            if (!skip()) {
-                break;
-            }
-        }
-        while (isWhiteSpace()) {
             if (!skip()) {
                 break;
             }
