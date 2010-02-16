@@ -413,7 +413,14 @@ class ScrollablePanel : Panel {
                 }
                 RowRenderer.Result rendererResult = renderer.DrawImage(offset);
                 lock (this) {
+                    Image img = null;
+                    if (this.result != null) {
+                        img = this.result.Image;
+                    }
                     this.result = rendererResult;
+                    if (img != null) {
+                        img.Dispose();
+                    }
                     dirtyOffset = dirtyOffset - startDirty;
                 }
                 ready.Set();

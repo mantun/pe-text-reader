@@ -1,16 +1,13 @@
 using System;
-using System.Windows.Forms;
-using System.Drawing;
-using System.Runtime.InteropServices;
-using System.IO;
 using System.Collections.Generic;
-
-using TextReader.ScrollingView.RowProviders;
-using TextReader.ScrollingView;
+using System.Drawing;
+using System.IO;
+using System.Windows.Forms;
+using TextReader.Configuration;
 using TextReader.Parsing;
+using TextReader.ScrollingView;
 using TextReader.TreeBrowse;
 using TextReader.TreeBrowse.FileSystem;
-using TextReader.Configuration;
 
 namespace TextReader {
 

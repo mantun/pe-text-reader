@@ -8,26 +8,29 @@ using TextReader.Parsing;
 namespace TextReader.ScrollingView.RowProviders {
 
 public class PlainTextRowProvider : RowProviderBase, IDisposable {
-    private IScrollable<Token> parser;
-    private Row currentRow;
+    private const int tabSize = 4;
+
+    private SplittingScrollable<Row, List<Row>> rowScroller;
     private int width;
     private int rowHeight;
     private Font basicFont;
     private IntPtr measuringDC;
     private IntPtr hFont;
     private SolidBrush brush;
-    LinkedList<Position> rowPos = new LinkedList<Position>();
+
+    private List<Row> current;
+    private Token token;
 
     public PlainTextRowProvider(Font basicFont, IScrollable<Token> parser) {
-        this.parser = parser;
         this.brush = new SolidBrush(Color.Black);
         this.measuringDC = GDI.CreateCompatibleDC(IntPtr.Zero);
-        while (!parser.IsFirst) {
-            parser.ToPrev();
-        }
-        rowPos.AddLast(parser.Position);
-        this.BasicFont = basicFont;
-        currentRow = buildRow();
+        this.basicFont = basicFont;
+        this.hFont = basicFont.ToHfont();
+        GDI.SelectObject(measuringDC, hFont);
+        this.rowHeight = calcRowHeight();
+
+        IScrollable<List<Row>> paragraphConverter = new MappingScrollable<List<Row>, Token>(parser, reflowParagraph);
+        this.rowScroller = new SplittingScrollable<Row, List<Row>>(paragraphConverter);
     }
     public void Dispose() {
         Dispose(true);
@@ -52,41 +55,101 @@ public class PlainTextRowProvider : RowProviderBase, IDisposable {
             this.hFont = IntPtr.Zero;
         }
     }
-    private Row buildRow() {
+    private List<Row> reflowParagraph(Token t) {
+        if (t == token) {
+            return current;
+        }
+        token = t;
+        var result = new List<Row>();
+        int i = 0;
+        while (i < t.Text.Length) {
+            result.Add(buildRow(ref i, t.Text));
+        }
+        if (result.Count == 0) {
+            result.Add(new PlainTextRow("", this));
+        }
+        current = result;
+        return result;
+    }
+    private Row buildRow(ref int inLineIndex, string line) {
         string text = "";
-        if (parser.Current.Equals(Token.DOCUMENT, TokenType.Begin)) {
-            parser.ToNext();
-        }
-        bool startP = parser.Current.Equals(Token.PARAGRAPH, TokenType.Begin);
-        if (startP) {
-            parser.ToNext();
-        }
-        if (parser.IsLast) {
-            throw new ArgumentException("Cannot build row from EOS");
-        }
         while (true) {
-            if (parser.Current.Equals(Token.PARAGRAPH, TokenType.End)) {
-                parser.ToNext();
+            string t;
+
+            // get whitespace
+            int i = inLineIndex;
+            while (i < line.Length && Char.IsWhiteSpace(line[i])) {
+                i++;
+            }
+
+            // keep whitespace at line beginning only if it is paragraph beginning
+            if (inLineIndex > 0 && text.Length == 0) {
+                inLineIndex = i;
+            }
+
+            // get word
+            while (i < line.Length && !Char.IsWhiteSpace(line[i])) {
+                i++;
+            }
+
+            if (inLineIndex == i) { // no more words (eol or only whitespace)
                 return new PlainTextRow(text, this);
             }
-            string t;
-            if (text.Length == 0 && !startP) {
-                t = parser.Current.Text.TrimStart();
-            } else {
-                t = expandTabs(text + parser.Current.Text, 4);
-            }
+
+            string word = line.Substring(inLineIndex, i - inLineIndex);
+            t = expandTabs(text + word, tabSize);
+
             if (textWidth(t) < width) {
-                parser.ToNext();
                 text = t;
+                inLineIndex = i;
             } else {
                 if (text.Length == 0) {
-                    parser.ToNext();
-                    return new PlainTextRow(t, this);
+                    if (inLineIndex == 0) {
+                        inLineIndex++;
+                        return new PlainTextRow(text, this);
+                    }
+                    int l = fitLongWord(word);
+                    inLineIndex += l;
+                    return new PlainTextRow(word.Substring(0, l), this);
                 } else {
                     return new PlainTextRow(text, this);
                 }
             }
         }
+    }
+    private int fitLongWord(string word) {
+        int index = 0;
+        while (index < word.Length && Char.IsWhiteSpace(word[index])) {
+            index++;
+        }
+        if (index > 0) {
+            return index;
+        }
+        int max = word.Length;
+        int min = 0;
+        int candidate = max / 2;
+        while (true) {
+            int w = textWidth(word.Substring(0, candidate));
+            int c;
+            if (w < width) {
+                min = candidate;
+                c = (candidate + max) / 2;
+                if (c == candidate) {
+                    break;
+                }
+            } else {
+                max = candidate;
+                c = (min + candidate) / 2;
+                if (c == candidate) {
+                    break;
+                }
+            }
+            candidate = c;
+        }
+        if (candidate == 0) {
+            candidate++;
+        }
+        return candidate;
     }
     private int textWidth(string text) {
         GDI.Rect rect = textBounds(text);
@@ -101,69 +164,30 @@ public class PlainTextRowProvider : RowProviderBase, IDisposable {
         GDI.DrawText(measuringDC, text, text.Length, ref rect, GDI.DT_NOPREFIX | GDI.DT_CALCRECT);
         return rect;
     }
-    public override Row Current { get { return currentRow; } }
-    public override bool IsFirst { get { return rowPos.Count == 1; } }
-    public override bool IsLast { get { return parser.IsLast; } }
+    public override Row Current { get { return rowScroller.Current; } }
+    public override bool IsFirst { get { return rowScroller.IsFirst; } }
+    public override bool IsLast { get { return rowScroller.IsLast; } }
     public override void ToNext() {
-        if (IsLast) {
-            throw new ArgumentException("Already at bottom");
-        }
-        rowPos.AddLast(parser.Position);
-        currentRow = buildRow();
+        rowScroller.ToNext();
     }
     public override void ToPrev() {
-        if (IsFirst) {
-            throw new ArgumentException("Already at top");
-        }
-        rowPos.RemoveLast();
-        parser.Position = rowPos.Last.Value;
-        currentRow = buildRow();
-    }
-    private class Pos : Position {
-        public int n;
-        public Position pos;
+        rowScroller.ToPrev();
     }
     public override Position Position { 
-        get { 
-            return new Pos() { pos = rowPos.Last.Value, n = rowPos.Count }; 
-        }
-        set { 
-            Pos p = (Pos) value;
-            if (p.n < rowPos.Count) {
-                while (p.n < rowPos.Count) {
-                    rowPos.RemoveLast();
-                }
-                parser.Position = p.pos;
-                currentRow = buildRow();
-            } else {
-                while (p.n > rowPos.Count) {
-                    rowPos.AddLast(parser.Position);
-                    currentRow = buildRow();
-                }
-            }
-        }
+        get { return rowScroller.Position; }
+        set { rowScroller.Position = value; }
     }
     public override int Width {
-        get {
-            return width;
-        }
-        set {
+        get { return width; }
+        set { 
             width = value;
-            LinkedListNode<Position> first = rowPos.First;
-            rowPos.Clear();
-            rowPos.AddLast(first);
-            parser.Position = first.Value;
-            currentRow = buildRow();
+            token = Token.Empty;
+            current = null;
         }
     }
-
     public Color ForeColor {
-        get {
-            return brush.Color;
-        }
-        set {
-            brush.Color = value;
-        }
+        get { return brush.Color; }
+        set { brush.Color = value; }
     }
     public Font BasicFont {
         get {
@@ -177,11 +201,8 @@ public class PlainTextRowProvider : RowProviderBase, IDisposable {
             hFont = basicFont.ToHfont();
             GDI.SelectObject(measuringDC, hFont);
             rowHeight = calcRowHeight();
-            Position pos = rowPos.First.Value;
-            rowPos.Clear();
-            rowPos.AddLast(pos);
-            parser.Position = pos;
-            currentRow = buildRow();
+            token = Token.Empty;
+            current = null;
         }
     }
 
@@ -192,6 +213,7 @@ public class PlainTextRowProvider : RowProviderBase, IDisposable {
         }
         return s;
     }
+
     private class PlainTextRow : Row {
         private string text;
         private PlainTextRowProvider parent;
