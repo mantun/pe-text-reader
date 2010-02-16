@@ -2,13 +2,10 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
-using System.Text;
-
-using TextReader.Interop;
+using TextReader.Configuration;
 using TextReader.ScrollingView;
 using TextReader.ScrollingView.RowProviders;
 using TextReader.Serialization;
-using TextReader.Configuration;
 
 namespace TextReader.Parsing {
 
@@ -127,22 +124,32 @@ public abstract class BookFile : IDisposable {
 }
 
 public class PlainTextFile : BookFile {
-    public FileStream stream;
+    private FileStream stream;
+    private SeekableStreamReader reader; 
 
     public PlainTextFile(FileInfo file) : base(file) { }
     protected override void Dispose(bool disposing) {
         base.Dispose(disposing);
+        if (reader != null) {
+            reader.Dispose();
+            reader = null;
+        }
         if (stream != null) {
             stream.Dispose();
             stream = null;
         }
     }
     protected override IScrollable<Token> createParser() {
+        if (reader != null) {
+            reader.Dispose();
+        }
         if (stream != null) {
             stream.Dispose();
         }
         stream = new FileStream(file.FullName, FileMode.Open, FileAccess.Read, FileShare.Read);
-        return new PlainTextParser(stream);
+        reader = new SeekableStreamReader(stream, true);
+        IScrollable<string> lineReader = new LineOfTextTokenizer(new BufferedCharProvider(reader));
+        return new MappingScrollable<Token, string>(lineReader, s => new Token(s, TokenType.Word));
     }
     protected override RowProvider createRowProvider() {
         return new PlainTextRowProvider(new Font("Courier New", 10, FontStyle.Regular), Parser);

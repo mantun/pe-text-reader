@@ -1,11 +1,8 @@
 ﻿using System;
-using System.Windows.Forms;
-using System.Drawing;
 using System.Collections.Generic;
 using System.IO;
 
 using TextReader.ScrollingView;
-using TextReader.Configuration;
 
 namespace TextReader.TreeBrowse.FileSystem {
 

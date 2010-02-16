@@ -192,6 +192,112 @@ public class MappingScrollable<T, U> : IScrollable<T> {
     }
 }
 
+public abstract class AggregatingScrollable<T, U> : IScrollable<T> {
+    protected IScrollable<U> underlying;
+    protected T current;
+    protected bool isFirst;
+    protected bool isLast;
+    protected bool atLeft;
+    protected Position beginPos;
+    protected Position endPos;
+    public AggregatingScrollable(IScrollable<U> underlying) {
+        this.underlying = underlying;
+        this.isFirst = checkFirst();
+        this.beginPos = underlying.Position;
+        this.current = fetchForward(ref isLast);
+        this.endPos = underlying.Position;
+        this.atLeft = false;
+    }
+    public T Current { get { return current; } }
+    public bool IsFirst { get { return isFirst; } }
+    public bool IsLast { get { return isLast; } }
+    public void ToNext() { 
+        if (atLeft) {
+            underlying.Position = endPos;
+            atLeft = false;
+        }
+        skipForward();
+        current = fetchForward(ref isLast);
+    }
+    public void ToPrev() { 
+        if (!atLeft) {
+            underlying.Position = beginPos;
+            atLeft = true;
+        }
+        skipBackward();
+        current = fetchBackward(ref isFirst); 
+    }
+    public Position Position {
+        get {
+            return beginPos;
+        }
+        set {
+            underlying.Position = value;
+            beginPos = value;
+            isFirst = checkFirst();
+            current = fetchForward(ref isLast);
+            endPos = underlying.Position;
+            atLeft = false;
+        }
+    }
+
+    protected abstract T fetchForward(ref bool isLast);
+    protected abstract void skipForward();
+    protected abstract T fetchBackward(ref bool isFirst);
+    protected abstract void skipBackward();
+    protected virtual bool checkFirst() {
+        return underlying.IsFirst;
+    }
+}
+
+public class SplittingScrollable<T, C> : IScrollable<T> where C : IList<T> {
+    private IScrollable<C> underlying;
+    private int index;
+    private int underlyingIndex;
+    public SplittingScrollable(IScrollable<C> underlying) {
+        this.underlying = underlying;
+        this.index = 0;
+        this.underlyingIndex = 0;
+    }
+    public T Current { get { return underlying.Current[index]; } }
+    public bool IsFirst { get { return index == 0 && underlying.IsFirst; } }
+    public bool IsLast { get { return index == underlying.Current.Count - 1 && underlying.IsLast; } }
+    public void ToNext() {
+        index++;
+        if (index == underlying.Current.Count) {
+            underlying.ToNext();
+            index = 0;
+        }
+    }
+    public void ToPrev() {
+        index--;
+        if (index < 0) {
+            underlying.ToPrev();
+            index = underlying.Current.Count - 1;
+        }
+    }
+    public Position Position {
+        get {
+            return new Pos() { pos = underlying.Position, index = index, underlyingIndex = underlyingIndex };
+        }
+        set {
+            Pos p = (Pos) value;
+            if (p.underlyingIndex == underlyingIndex) {
+                index = p.index;
+            } else {
+                underlying.Position = p.pos;
+                index = p.index;
+                underlyingIndex = p.underlyingIndex;
+            }
+        }
+    }
+    private class Pos : Position {
+        public Position pos;
+        public int index;
+        public int underlyingIndex;
+    }
+}
+
 public class TimedScrollable<T> : IScrollable<T> {
     long current;
     long last;
