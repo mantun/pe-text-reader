@@ -89,7 +89,7 @@ public class CachingScrollable<T> : IScrollable<T> {
     }
     public Position Position { 
         get {
-            return new Pos { pos = currentNode.Value.pos, index = currentNode.Value.index };
+            return new Pos() { pos = currentNode.Value.pos, index = currentNode.Value.index };
         }
         set {
             Pos p = (Pos) value;
