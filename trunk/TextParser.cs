@@ -32,10 +32,6 @@ public struct Token {
     }
     public const string DOCUMENT = "doc";
     public const string PARAGRAPH = "p";
-    public static readonly Token DOCUMENT_BEGIN = new Token(DOCUMENT, TokenType.Begin);
-    public static readonly Token DOCUMENT_END = new Token(DOCUMENT, TokenType.End);
-    public static readonly Token PARAGRAPH_BEGIN = new Token(PARAGRAPH, TokenType.Begin);
-    public static readonly Token PARAGRAPH_END = new Token(PARAGRAPH, TokenType.End);
     public static bool operator == (Token t1, Token t2) {
         return t1.Equals(t2);
     }
@@ -228,7 +224,9 @@ class BufferedCharProvider : IScrollable<char> {
 }
 
 public class LineOfTextTokenizer : AggregatingScrollable<string, char> {
-    public LineOfTextTokenizer(IScrollable<char> underlying) : base(underlying) { }
+    public LineOfTextTokenizer(IScrollable<char> underlying) : base(underlying) {
+        init();
+    }
     protected override string fetchForward(ref bool isLast) {
         string line = "";
         while (underlying.Current != '\r' && underlying.Current != '\n') {

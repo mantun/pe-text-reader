@@ -11,15 +11,13 @@ public class PlainTextRowProvider : RowProviderBase, IDisposable {
     private const int tabSize = 4;
 
     private SplittingScrollable<Row, List<Row>> rowScroller;
+    private CachedMappingScrollable<List<Row>, Token> paragraphConverter;
     private int width;
     private int rowHeight;
     private Font basicFont;
     private IntPtr measuringDC;
     private IntPtr hFont;
     private SolidBrush brush;
-
-    private List<Row> current;
-    private Token token;
 
     public PlainTextRowProvider(Font basicFont, IScrollable<Token> parser) {
         this.brush = new SolidBrush(Color.Black);
@@ -29,7 +27,7 @@ public class PlainTextRowProvider : RowProviderBase, IDisposable {
         GDI.SelectObject(measuringDC, hFont);
         this.rowHeight = calcRowHeight();
 
-        IScrollable<List<Row>> paragraphConverter = new MappingScrollable<List<Row>, Token>(parser, reflowParagraph);
+        paragraphConverter = new CachedMappingScrollable<List<Row>, Token>(parser, reflowParagraph);
         this.rowScroller = new SplittingScrollable<Row, List<Row>>(paragraphConverter);
     }
     public void Dispose() {
@@ -56,10 +54,6 @@ public class PlainTextRowProvider : RowProviderBase, IDisposable {
         }
     }
     private List<Row> reflowParagraph(Token t) {
-        if (t == token) {
-            return current;
-        }
-        token = t;
         var result = new List<Row>();
         int i = 0;
         while (i < t.Text.Length) {
@@ -68,7 +62,6 @@ public class PlainTextRowProvider : RowProviderBase, IDisposable {
         if (result.Count == 0) {
             result.Add(new PlainTextRow("", this));
         }
-        current = result;
         return result;
     }
     private Row buildRow(ref int inLineIndex, string line) {
@@ -181,8 +174,7 @@ public class PlainTextRowProvider : RowProviderBase, IDisposable {
         get { return width; }
         set { 
             width = value;
-            token = Token.Empty;
-            current = null;
+            paragraphConverter.Invalidate();
         }
     }
     public Color ForeColor {
@@ -201,8 +193,7 @@ public class PlainTextRowProvider : RowProviderBase, IDisposable {
             hFont = basicFont.ToHfont();
             GDI.SelectObject(measuringDC, hFont);
             rowHeight = calcRowHeight();
-            token = Token.Empty;
-            current = null;
+            paragraphConverter.Invalidate();
         }
     }
 
