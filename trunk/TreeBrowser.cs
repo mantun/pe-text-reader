@@ -30,10 +30,10 @@ public class TreeBrowser : Form {
         set { 
             int direction = 0;
             if (current != null) {
-                if (current.IsParentOf(value)) {
-                    direction = 1;
-                } else if (value.IsParentOf(current)) {
+                if (current.IsChildOf(value)) {
                     direction = -1;
+                } else if (value.IsChildOf(current)) {
+                    direction = 1;
                 }
             }
             current = value;
@@ -239,7 +239,7 @@ public interface TreeItem {
     String Name { get; }
     ItemsHolder CreateItems();
     TreeItem Parent { get; }
-    bool IsParentOf(TreeItem other);
+    bool IsChildOf(TreeItem other);
     bool IsLeaf { get; }
     TreeItem ChildFromRow(Row row);
 }
