@@ -12,6 +12,7 @@ class ScrollablePanel : Panel {
     private RowProvider rowProvider;
 
     private Brush backgroundBrush = new SolidBrush(Color.White);
+    private Brush stripeBrush = new SolidBrush(Color.Gray);
     private int? viewStart;
     private bool mouseDown;
     private int downY;
@@ -177,11 +178,13 @@ class ScrollablePanel : Panel {
             int viewOffset = res.Offset + (int) viewStart;
             if (viewOffset < 0) {
                 e.Graphics.FillRectangle(backgroundBrush, 0, 0, this.ClientRectangle.Width, -viewOffset);
+                e.Graphics.FillRectangle(stripeBrush, 0, -viewOffset % ClientRectangle.Height, this.ClientRectangle.Width, 20);
             }
             Rectangle src = new Rectangle(0, viewOffset, this.ClientRectangle.Width, this.ClientRectangle.Height);
             e.Graphics.DrawImage(res.r.Image, 0, 0, src, GraphicsUnit.Pixel);
             if (res.r.Image.Height - viewOffset < this.ClientRectangle.Height) {
                 e.Graphics.FillRectangle(backgroundBrush, 0, res.r.Image.Height - viewOffset, this.ClientRectangle.Width, this.ClientRectangle.Height + viewOffset - res.r.Image.Height);
+                e.Graphics.FillRectangle(stripeBrush, 0, (res.r.Image.Height - viewOffset) % ClientRectangle.Height + ClientRectangle.Height, this.ClientRectangle.Width, 20);
             }
         }
         base.OnPaint(e);
