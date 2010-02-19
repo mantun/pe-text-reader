@@ -175,20 +175,40 @@ public class ArrayScrollable<T> : IScrollable<T> {
 }
 
 public class MappingScrollable<T, U> : IScrollable<T> {
-    private IScrollable<U> underlying;
-    private Func<U, T> map;
+    protected IScrollable<U> underlying;
+    protected Func<U, T> map;
     public MappingScrollable(IScrollable<U> underlying, Func<U, T> map) {
         this.underlying = underlying;
         this.map = map;
     }
-    public T Current { get { return map(underlying.Current); } }
+    public virtual T Current { get { return map(underlying.Current); } }
     public bool IsLast { get { return underlying.IsLast; } }
     public bool IsFirst { get { return underlying.IsFirst; } }
     public void ToNext() { underlying.ToNext(); }
     public void ToPrev() { underlying.ToPrev(); }
-    public Position Position {
+    public virtual Position Position {
         get { return underlying.Position; }
         set { underlying.Position = value; }
+    }
+}
+
+public class CachedMappingScrollable<T, U> : MappingScrollable<T, U> {
+    private U currentUndelying;
+    private T current;
+    private bool dirty;
+    public CachedMappingScrollable(IScrollable<U> underlying, Func<U, T> map) : base(underlying, map) { }
+    public override T Current { 
+        get {
+            if (dirty || !underlying.Current.Equals(currentUndelying)) {
+                currentUndelying = underlying.Current;
+                current = map(underlying.Current);
+                dirty = false;
+            }
+            return current;
+        } 
+    }
+    public void Invalidate() {
+        dirty = true;
     }
 }
 
@@ -202,11 +222,6 @@ public abstract class AggregatingScrollable<T, U> : IScrollable<T> {
     protected Position endPos;
     public AggregatingScrollable(IScrollable<U> underlying) {
         this.underlying = underlying;
-        this.isFirst = checkFirst();
-        this.beginPos = underlying.Position;
-        this.current = fetchForward(ref isLast);
-        this.endPos = underlying.Position;
-        this.atLeft = false;
     }
     public T Current { get { return current; } }
     public bool IsFirst { get { return isFirst; } }
@@ -217,7 +232,9 @@ public abstract class AggregatingScrollable<T, U> : IScrollable<T> {
             atLeft = false;
         }
         skipForward();
+        beginPos = underlying.Position;
         current = fetchForward(ref isLast);
+        endPos = underlying.Position;
     }
     public void ToPrev() { 
         if (!atLeft) {
@@ -225,7 +242,9 @@ public abstract class AggregatingScrollable<T, U> : IScrollable<T> {
             atLeft = true;
         }
         skipBackward();
+        endPos = underlying.Position;
         current = fetchBackward(ref isFirst); 
+        beginPos = underlying.Position;
     }
     public Position Position {
         get {
@@ -241,6 +260,13 @@ public abstract class AggregatingScrollable<T, U> : IScrollable<T> {
         }
     }
 
+    protected virtual void init() {
+        this.isFirst = checkFirst();
+        this.beginPos = underlying.Position;
+        this.current = fetchForward(ref isLast);
+        this.endPos = underlying.Position;
+        this.atLeft = false;
+    }
     protected abstract T fetchForward(ref bool isLast);
     protected abstract void skipForward();
     protected abstract T fetchBackward(ref bool isFirst);
@@ -266,6 +292,7 @@ public class SplittingScrollable<T, C> : IScrollable<T> where C : IList<T> {
         index++;
         if (index == underlying.Current.Count) {
             underlying.ToNext();
+            underlyingIndex++;
             index = 0;
         }
     }
@@ -273,6 +300,7 @@ public class SplittingScrollable<T, C> : IScrollable<T> where C : IList<T> {
         index--;
         if (index < 0) {
             underlying.ToPrev();
+            underlyingIndex--;
             index = underlying.Current.Count - 1;
         }
     }
@@ -359,6 +387,53 @@ public class TimedScrollable<T> : IScrollable<T> {
     }
     public override string ToString() {
         return "c:" + current + " f:" + first + " l:" + last + " n:" + next + " p:" + prev + " gp:" + getpos + " sp:" + setpos;
+    }
+}
+
+public class DebugTrackingScrollable<T> : IScrollable<T> {
+    IScrollable<T> underlying;
+    public DebugTrackingScrollable(IScrollable<T> underlying) {
+        this.underlying = underlying;
+    }
+    public T Current { 
+        get {
+            T result = underlying.Current;
+            Console.WriteLine("Current: " + result);
+            return result;
+        } 
+    }
+    public bool IsLast {
+        get {
+            bool result = underlying.IsLast;
+            Console.WriteLine("IsLast: " + result);
+            return result;
+        } 
+    }
+    public bool IsFirst { 
+        get {
+            bool result = underlying.IsFirst;
+            Console.WriteLine("IsFirst: " + result);
+            return result;
+        } 
+    }
+    public void ToNext() {
+        Console.WriteLine("ToNext");
+        underlying.ToNext();
+    }
+    public void ToPrev() {
+        Console.WriteLine("ToPrev");
+        underlying.ToPrev();
+    }
+    public Position Position {
+        get {
+            Position result = underlying.Position;
+            Console.WriteLine("Position: " + result);
+            return result;
+        } 
+        set {
+            Console.WriteLine("ToPosition: " + value);
+            underlying.Position = value;
+        } 
     }
 }
 

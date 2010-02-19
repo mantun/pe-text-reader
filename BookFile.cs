@@ -2,7 +2,9 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
+
 using TextReader.Configuration;
+using TextReader.Formatting;
 using TextReader.ScrollingView;
 using TextReader.ScrollingView.RowProviders;
 using TextReader.Serialization;
@@ -74,6 +76,8 @@ public abstract class BookFile : IDisposable {
     public static BookFile Create(FileInfo file) {
         if (file.Extension == ".txt") {
             return new PlainTextFile(file);
+        } else if (file.Extension == ".sfb") {
+            return new SFBFile(file);
         }
         return new PlainTextFile(file);
     }
@@ -159,4 +163,39 @@ public class PlainTextFile : BookFile {
     }
 }
 
+public class SFBFile : BookFile {
+    private FileStream stream;
+    private SeekableStreamReader reader; 
+
+    public SFBFile(FileInfo file) : base(file) { }
+    protected override void Dispose(bool disposing) {
+        base.Dispose(disposing);
+        if (reader != null) {
+            reader.Dispose();
+            reader = null;
+        }
+        if (stream != null) {
+            stream.Dispose();
+            stream = null;
+        }
+    }
+    protected override IScrollable<Token> createParser() {
+        if (reader != null) {
+            reader.Dispose();
+        }
+        if (stream != null) {
+            stream.Dispose();
+        }
+        stream = new FileStream(file.FullName, FileMode.Open, FileAccess.Read, FileShare.Read);
+        reader = new SeekableStreamReader(stream, true);
+        IScrollable<string> lineReader = new LineOfTextTokenizer(new BufferedCharProvider(reader));
+        return new SFBParser(lineReader);
+    }
+    protected override RowProvider createRowProvider() {
+        return new FormattedRowProvider(Parser);
+    }
+    protected override List<Bookmark> buildTOC() {
+        return new List<Bookmark>();
+    }
+}
 }
