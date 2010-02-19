@@ -98,6 +98,14 @@ class ScrollablePanel : Panel {
         public Position pos;
     }
 
+    public void Freeze() {
+        timer.Enabled = false;
+    }
+
+    public void Unfreeze() {
+        timer.Enabled = true;
+    }
+
     protected override void Dispose(bool disposing) {
         if (disposing) {
             if (timer != null) {

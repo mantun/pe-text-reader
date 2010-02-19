@@ -48,9 +48,9 @@ public class RecentRootItem : TreeItem {
         return new RecentItemsHolder(recent, drawParams);
     }
     public TreeItem Parent { get { return new DirectoryTreeItem(startDir, drawParams); } }
-    public bool IsParentOf(TreeItem other) {
-        if (other is RecentItem) {
-            return true;
+    public bool IsChildOf(TreeItem other) {
+        if (other is DirectoryTreeItem) {
+            return startDir.Equals((other as DirectoryTreeItem).Dir);
         }
         return false;
     }
@@ -75,8 +75,8 @@ public class RecentItem : TreeItem {
         throw new ArgumentException("Leaf node");
     }
     public TreeItem Parent { get { return null; } }
-    public bool IsParentOf(TreeItem other) {
-        return false;
+    public bool IsChildOf(TreeItem other) {
+        return other is RecentRootItem;
     }
     public bool IsLeaf { get { return true; } }
     public TreeItem ChildFromRow(Row row) {

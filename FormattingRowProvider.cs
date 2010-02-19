@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Drawing;
+using System.Linq;
 using System.Collections.Generic;
 
 using TextReader;
@@ -111,6 +112,26 @@ public class FormattedRowProvider : RowProviderBase {
             return isFirst;
         }
 
+        public override Position Position {
+            get {
+                return new Pos() { pos = base.Position, activeStyles = new List<StyleName>(from Style s in styles select s.Name) };
+            }
+            set {
+                Pos p = (Pos) value;
+                styles.Clear();
+                styles.Push(styleFactory.Normal);
+                for (int i = p.activeStyles.Count - 2; i >= 0 ; i--) {
+                    styles.Push(styleFactory.createStyle(p.activeStyles[i], styles.Peek()));
+                }
+                base.Position = p.pos;
+            }
+        }
+
+        private class Pos : Position {
+            public Position pos;
+            public List<StyleName> activeStyles;
+        }
+
         private void moveBackwardToParagraphBeginning() {
             while (!underlying.Current.Equals(Token.PARAGRAPH, TokenType.Begin)) {
                 if (underlying.Current.Type == TokenType.End) {
@@ -128,13 +149,17 @@ public class FormattedRowProvider : RowProviderBase {
             }
             underlying.ToNext();
             List<Row> rows = new List<Row>();
-            FormattedRow currentRow = new FormattedRow(styles.Peek(), true, spaceWidth, this);
+            if (!(styles.Peek() is ParagraphStyle)) {
+                throw new ArgumentException("Character styles found outside paragraph");
+            }
+            ParagraphStyle style = styles.Peek() as ParagraphStyle;
+            FormattedRow currentRow = new FormattedRow(style, true, spaceWidth, this);
             foreach (RowItem word in getWords()) {
                 if (currentRow.Fits(word)) {
                     currentRow.Add(word);
                 } else {
                     rows.Add(currentRow);
-                    currentRow = new FormattedRow(styles.Peek(), false, spaceWidth, this);
+                    currentRow = new FormattedRow(style, false, spaceWidth, this);
                     currentRow.Add(word);
                 }
             }
@@ -156,7 +181,7 @@ public class FormattedRowProvider : RowProviderBase {
         private void enterStyle(string styleName) {
             StyleName newStyleName;
             try {
-                newStyleName = (StyleName) Enum.Parse(typeof(StyleName), styleName);
+                newStyleName = (StyleName) Enum.Parse(typeof(StyleName), styleName, false);
             } catch (ArgumentException) {
                 return;
             }
@@ -166,7 +191,7 @@ public class FormattedRowProvider : RowProviderBase {
         private void leaveStyle(string styleName) {
             StyleName currStyleName;
             try {
-                currStyleName = (StyleName) Enum.Parse(typeof(StyleName), styleName);
+                currStyleName = (StyleName) Enum.Parse(typeof(StyleName), styleName, false);
             } catch (ArgumentException) {
                 return;
             }
@@ -180,17 +205,18 @@ public class FormattedRowProvider : RowProviderBase {
 
         private class FormattedRow : Row {
             private List<RowItem> words = new List<RowItem>();
-            private Style style;
+            private ParagraphStyle style;
             private bool isFirst;
             private int height;
             private int width;
             private int spaceWidth;
             private Builder parent;
-            public FormattedRow(Style style, bool isFirst, int spaceWidth, Builder parent) {
+            public FormattedRow(ParagraphStyle style, bool isFirst, int spaceWidth, Builder parent) {
                 this.style = style;
                 this.isFirst = isFirst;
                 this.spaceWidth = spaceWidth;
                 this.parent = parent;
+                this.height = textBounds("0", style.Font).Bottom;
             }
             public void Add(RowItem word) {
                 if (height < word.Height) {
@@ -233,6 +259,8 @@ public class FormattedRowProvider : RowProviderBase {
                 int w;
                 if (style.Align == ParagraphAlign.Center) {
                     w = (parent.width - width) / 2;
+                } else if (style.Align == ParagraphAlign.Right) {
+                    w = parent.width - width;
                 } else {
                     w = indent();
                 }

@@ -223,10 +223,10 @@ public abstract class AggregatingScrollable<T, U> : IScrollable<T> {
     public AggregatingScrollable(IScrollable<U> underlying) {
         this.underlying = underlying;
     }
-    public T Current { get { return current; } }
-    public bool IsFirst { get { return isFirst; } }
-    public bool IsLast { get { return isLast; } }
-    public void ToNext() { 
+    public virtual T Current { get { return current; } }
+    public virtual bool IsFirst { get { return isFirst; } }
+    public virtual bool IsLast { get { return isLast; } }
+    public virtual void ToNext() { 
         if (atLeft) {
             underlying.Position = endPos;
             atLeft = false;
@@ -236,7 +236,7 @@ public abstract class AggregatingScrollable<T, U> : IScrollable<T> {
         current = fetchForward(ref isLast);
         endPos = underlying.Position;
     }
-    public void ToPrev() { 
+    public virtual void ToPrev() { 
         if (!atLeft) {
             underlying.Position = beginPos;
             atLeft = true;
@@ -246,7 +246,7 @@ public abstract class AggregatingScrollable<T, U> : IScrollable<T> {
         current = fetchBackward(ref isFirst); 
         beginPos = underlying.Position;
     }
-    public Position Position {
+    public virtual Position Position {
         get {
             return beginPos;
         }

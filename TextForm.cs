@@ -52,6 +52,9 @@ class TextForm : System.Windows.Forms.Form {
         panel.Anchor = AnchorStyles.Left | AnchorStyles.Top | AnchorStyles.Right | AnchorStyles.Bottom;
         this.Controls.Add(panel);
 
+        this.Deactivate += onDeactivate;
+        this.Activated += onActivate;
+
         MenuItem exitMenuItem = new MenuItem() { Text = "Exit" };
         exitMenuItem.Click += exitClick;
         MenuItem openMenuItem = new MenuItem() { Text = "Open" };
@@ -62,8 +65,13 @@ class TextForm : System.Windows.Forms.Form {
         menuRoot.MenuItems.Add(openMenuItem);
         menuRoot.MenuItems.Add(setBookmarkMenuItem);
         menuRoot.MenuItems.Add(exitMenuItem);
+
+        MenuItem autoscrollMenuItem = new MenuItem() { Text = "Autoscroll" };
+        autoscrollMenuItem.Click += autoscrollClick;
+        
         MainMenu menu = new MainMenu();
         menu.MenuItems.Add(menuRoot);
+        menu.MenuItems.Add(autoscrollMenuItem);
         this.Menu = menu;
     }
 
@@ -121,14 +129,20 @@ class TextForm : System.Windows.Forms.Form {
     }
 
     private void exitClick(object sender, EventArgs e) {
-        Bookmark bookmark;
-        lock (panel.RowProvider) {
-            int y = 0;
-            bookmark = new Bookmark("A: " + panel.RowAt(ref y).Text + "\0x2026", panel.Position);
-        }
-        bookFile.Index.Autosave = bookmark;
-        bookFile.SaveIndex();
+        autosaveBookmark();
         Close();
+    }
+
+    private void onDeactivate(object sender, EventArgs e) {
+        panel.Freeze();
+        autosaveBookmark();
+    }
+
+    private void onActivate(object sender, EventArgs e) {
+        panel.Unfreeze();
+    }
+
+    private void autoscrollClick(object sender, EventArgs e) {
     }
 
     private void setBookmarkClick(object sender, EventArgs e) {
@@ -142,6 +156,15 @@ class TextForm : System.Windows.Forms.Form {
         BookFile.SaveIndex();
     }
 
+    private void autosaveBookmark() {
+        Bookmark bookmark;
+        lock (panel.RowProvider) {
+            int y = 0;
+            bookmark = new Bookmark("A: " + panel.RowAt(ref y).Text + "\0x2026", panel.Position);
+        }
+        bookFile.Index.Autosave = bookmark;
+        bookFile.SaveIndex();
+    }
 }
 
 }

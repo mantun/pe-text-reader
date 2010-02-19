@@ -116,22 +116,19 @@ class FileRow : Row, IDisposable {
 
 public class DirectoryTreeItem : TreeItem {
     private DrawParams drawParams;
-    private DirectoryInfo dir;
+    public readonly DirectoryInfo Dir;
     public DirectoryTreeItem(DirectoryInfo dir, DrawParams drawParams) {
-        this.dir = dir;
+        this.Dir = dir;
         this.drawParams = drawParams;
     }
-    public String Name { get { return dir.Name; } }
+    public String Name { get { return Dir.Name; } }
     public ItemsHolder CreateItems() {
-        return new FileSystemItemsHolder(dir, drawParams);
+        return new FileSystemItemsHolder(Dir, drawParams);
     }
-    public TreeItem Parent { get { return dir.Parent == null ? null : new DirectoryTreeItem(dir.Parent, drawParams); } }
-    public bool IsParentOf(TreeItem other) {
-        if (other is FileTreeItem) {
-            return (other as FileTreeItem).File.FullName.StartsWith(dir.FullName);
-        }
+    public TreeItem Parent { get { return Dir.Parent == null ? null : new DirectoryTreeItem(Dir.Parent, drawParams); } }
+    public bool IsChildOf(TreeItem other) {
         if (other is DirectoryTreeItem) {
-            return (other as DirectoryTreeItem).dir.FullName.StartsWith(dir.FullName);
+            return Dir.FullName.StartsWith((other as DirectoryTreeItem).Dir.FullName);
         }
         return false;
     }
@@ -164,7 +161,10 @@ public class FileTreeItem : TreeItem {
         throw new ArgumentException("Leaf node");
     }
     public TreeItem Parent { get { return new DirectoryTreeItem(File.Directory, drawParams); } }
-    public bool IsParentOf(TreeItem other) {
+    public bool IsChildOf(TreeItem other) {
+        if (other is DirectoryTreeItem) {
+            return File.FullName.StartsWith((other as DirectoryTreeItem).Dir.FullName);
+        }
         return false;
     }
     public bool IsLeaf { get { return true; } }
