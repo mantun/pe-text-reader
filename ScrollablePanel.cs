@@ -133,7 +133,9 @@ class ScrollablePanel : Panel {
         if (rowProvider == null) {
             return;
         }
-        rowProvider.Width = ClientRectangle.Width;
+        lock (rowProvider) {
+            rowProvider.Width = ClientRectangle.Width;
+        }
         renderer.Width = ClientRectangle.Width;
         renderer.Height = ClientRectangle.Height * ClippingRatio;
     }
