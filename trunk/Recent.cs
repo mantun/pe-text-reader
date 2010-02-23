@@ -14,7 +14,7 @@ class RecentItemsHolder : ItemsHolder {
         this.drawParams = drawParams;
         this.recent = recent;
     }
-    public IScrollable<Row> createRows() {
+    public IScrollable<Row> CreateRows() {
         var files = new ArrayScrollable<FileInfo>(recent);
         return new MappingScrollable<Row, FileInfo>(files, getRow);
     }

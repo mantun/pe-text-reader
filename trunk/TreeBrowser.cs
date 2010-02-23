@@ -42,11 +42,11 @@ public class TreeBrowser : Form {
             }
             itemsHolder = current.CreateItems();
             if (itemsPanel.RowProvider == null) {
-                rowProvider.SetContent(itemsHolder.createRows(), direction);
+                rowProvider.SetContent(itemsHolder.CreateRows(), direction);
                 itemsPanel.RowProvider = new CachingRowProvider(rowProvider, 100);
             } else {
                 lock (itemsPanel.RowProvider) {
-                    rowProvider.SetContent(itemsHolder.createRows(), direction);
+                    rowProvider.SetContent(itemsHolder.CreateRows(), direction);
                 }
             }
         }
@@ -65,6 +65,7 @@ public class TreeBrowser : Form {
         this.MinimizeBox = false;
         this.iconWidth = GDI.GetSystemMetrics(GDI.SM_CXICON);
         this.rowHeight = GDI.GetSystemMetrics(GDI.SM_CYICON);
+        this.fontHeight = GDI.FontHeight(Font);
 
         itemsPanel = new ScrollablePanel();
         Rectangle r = this.ClientRectangle;
@@ -232,7 +233,7 @@ public class TreeBrowser : Form {
 }
 
 public interface ItemsHolder : IDisposable {
-    IScrollable<Row> createRows();
+    IScrollable<Row> CreateRows();
 }
 
 public interface TreeItem {

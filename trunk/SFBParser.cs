@@ -36,7 +36,7 @@ public class SFBParser : IScrollable<Token> {
     private IScrollable<Token> tokenScroller;
 
     public SFBParser(IScrollable<string> lineSplitter) {
-        var lineParser = new CachedMappingScrollable<List<Token>, string>(new CachingScrollable<string>(lineSplitter, 30), parseLine);
+        var lineParser = new CachedMappingScrollable<List<Token>, string>(new CachingScrollable<string>(lineSplitter, 100), parseLine);
         tokenScroller = new SplittingScrollable<Token, List<Token>>(lineParser);
     }
 

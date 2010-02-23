@@ -39,7 +39,7 @@ class FileSystemItemsHolder : ItemsHolder {
             createdRows = null;
         }
     }
-    public IScrollable<Row> createRows() {
+    public IScrollable<Row> CreateRows() {
         var files = new ArrayScrollable<FileSystemInfo>(listFiles(dir));
         return new MappingScrollable<Row, FileSystemInfo>(files, getRow);
     }
