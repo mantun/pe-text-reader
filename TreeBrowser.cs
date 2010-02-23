@@ -155,6 +155,7 @@ public class TreeBrowser : Form {
         }
         if (item.IsLeaf) {
             selected = item;
+            Thread.Sleep(100); // give the user a chance to see the highlighted row
             Close();
         } else {
             Current = item;
@@ -230,6 +231,19 @@ public class TreeBrowser : Form {
         }
     }
 
+}
+
+public class DrawParams {
+    public int Width;
+    public int RowHeight;
+    public int FontHeight;
+    public Font Font;
+    public DrawParams(Font font, int width) {
+        Font = font;
+        Width = width;
+        FontHeight = GDI.FontHeight(Font);
+        RowHeight = GDI.GetSystemMetrics(GDI.SM_CYICON);
+    }
 }
 
 public interface ItemsHolder : IDisposable {

@@ -70,7 +70,7 @@ public class RowRenderer {
         while (h < image.Height) {
             visibleRows.Add(rows.Current);
             rowOffsets.Add(h);
-            rows.Current.Draw(g, h);
+            rows.Current.Draw(g, h, false);
             h += rows.Current.Height;
             if (rows.IsLast) {
                 break;
@@ -149,7 +149,7 @@ public class RowRenderer {
 
 public interface Row {
     int Height { get; }
-    void Draw(Graphics g, int y);
+    void Draw(Graphics g, int y, bool hightlighted);
     string Text { get; }
 }
 

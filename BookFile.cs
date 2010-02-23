@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
+using System.Threading;
 
 using TextReader.Configuration;
 using TextReader.Formatting;
@@ -30,9 +31,12 @@ public class Bookmark {
 }
 
 public class BookIndex {
-    public Bookmark Autosave;
-    public List<Bookmark> UserBookmarks = new List<Bookmark>();
-    public List<Bookmark> TOC = new List<Bookmark>();
+    private Bookmark autosave;
+    private List<Bookmark> userBookmarks = new List<Bookmark>();
+    private List<Bookmark> toc = new List<Bookmark>();
+    public virtual Bookmark Autosave { get { return autosave; } set { autosave = value; } }
+    public virtual List<Bookmark> UserBookmarks { get { return userBookmarks; } set { userBookmarks = value; } }
+    public virtual List<Bookmark> TOC { get { return toc; } set { toc = value; } }
 }
 
 public abstract class BookFile : IDisposable {
@@ -41,12 +45,15 @@ public abstract class BookFile : IDisposable {
     protected BookIndex index;
     protected IScrollable<Token> parser;
     protected RowProvider rowProvider;
+    protected Thread tocBuilder;
     protected BookFile(FileInfo file) {
         this.file = file;
         indexFile = Config.AppData() + "\\" + getIndexFileName(file);
         if (!loadIndex()) {
             index = new BookIndex();
-            index.TOC = buildTOC();
+            tocBuilder = new Thread(() => index.TOC = buildTOC());
+            tocBuilder.Priority = ThreadPriority.Lowest;
+            tocBuilder.Start();
         }
     }
     ~BookFile() {
@@ -97,7 +104,39 @@ public abstract class BookFile : IDisposable {
             return rowProvider;
         }
     }
-    public BookIndex Index { get { return index; } }
+    public BookIndex Index { 
+        get {
+            if (tocBuilder != null) {
+                return new BlockingIndex(this);
+            } else {
+                return index;
+            }
+        } 
+    }
+    private class BlockingIndex : BookIndex {
+        private BookFile parent;
+        public BlockingIndex(BookFile parent) {
+            this.parent = parent;
+        }
+        public override List<Bookmark> TOC {
+            get {
+                if (parent.tocBuilder != null) {
+                    parent.tocBuilder.Join();
+                    parent.tocBuilder = null;
+                }
+                return parent.index.TOC;
+            }
+            set { parent.index.TOC = value; }
+        }
+        public override Bookmark Autosave {
+            get { return parent.index.Autosave; }
+            set { parent.index.Autosave = value; }
+        }
+        public override List<Bookmark> UserBookmarks {
+            get { return parent.index.UserBookmarks; }
+            set { parent.index.UserBookmarks = value; }
+        }
+    }
     public void SaveIndex() {
         using (FileStream s = new FileStream(indexFile, FileMode.Create)) {
             Serializer.Serialize(index, s);
