@@ -153,10 +153,14 @@ public abstract class BookFile : IDisposable {
     }
     private bool loadIndex() {
         if (System.IO.File.Exists(indexFile)) {
-            using (FileStream s = new FileStream(indexFile, FileMode.Open)) {
-                index = (BookIndex) Serializer.Deserialize(s);
+            try {
+                using (FileStream s = new FileStream(indexFile, FileMode.Open)) {
+                    index = (BookIndex) Serializer.Deserialize(s);
+                }
+                return true;
+            } catch (Exception) {
+                return false;
             }
-            return true;
         } else {
             return false;
         }

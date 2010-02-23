@@ -21,6 +21,7 @@ public class CachingScrollable<T> : IScrollable<T> {
     private LinkedList<CacheItem> cache;
     private LinkedListNode<CacheItem> currentNode;
     private bool atLeft;
+    private long generation;
     public CachingScrollable(IScrollable<T> underlying, int cacheSize) {
         this.cacheSize = cacheSize;
         this.underlying = underlying;
@@ -90,15 +91,16 @@ public class CachingScrollable<T> : IScrollable<T> {
     public Position Position { 
         get {
             if (currentNode != null) {
-                return new Pos() { pos = currentNode.Value.pos, index = currentNode.Value.index };
+                return new Pos() { pos = currentNode.Value.pos, generation = generation, index = currentNode.Value.index };
             } else {
-                return new Pos() { pos = underlying.Position };
+                return new Pos() { pos = underlying.Position, generation = Environment.TickCount };
             }
         }
         set {
             if (value is Pos) {
                 Pos p = (Pos) value;
-                if (cache.Count > 0 && cache.First.Value.index <= p.index && cache.Last.Value.index >= p.index) {
+                if (p.generation == this.generation && cache.Count > 0 
+                    && cache.First.Value.index <= p.index && cache.Last.Value.index >= p.index) {
                     int diff = p.index - currentNode.Value.index;
                     while (diff > 0) {
                         ToNext();
@@ -131,6 +133,10 @@ public class CachingScrollable<T> : IScrollable<T> {
 
     protected void initCurrent() {
         if (currentNode == null) {
+            if (cache.Count != 0) {
+                throw new ArgumentException("currenNode is null in non-empty cache"); // a bug, that is
+            }
+            generation = Environment.TickCount;
             cache.AddLast(new CacheItem { pos = underlying.Position, value = underlying.Current, index = 0 });
             currentNode = cache.First;
             atLeft = false;
@@ -157,6 +163,7 @@ public class CachingScrollable<T> : IScrollable<T> {
     private class Pos : Position {
         public Position pos;
         public int index;
+        public long generation;
     }
 }
 
