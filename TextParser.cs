@@ -141,6 +141,9 @@ class BufferedCharProvider : IScrollable<char> {
             return p;
         }
         set {
+            if (!(value is Pos)) {
+                throw new ArgumentException("Unsupported position type. Expected: " + typeof(Pos) + ", found: " + value.GetType());
+            }
             Pos p = (Pos) value;
             this.charPos = p.charPos;
             if (!this.blockPos.ContainsKey(p.knownBlockNo)) {

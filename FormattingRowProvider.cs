@@ -117,13 +117,19 @@ public class FormattedRowProvider : RowProviderBase {
                 return new Pos() { pos = base.Position, activeStyles = new List<StyleName>(from Style s in styles select s.Name) };
             }
             set {
-                Pos p = (Pos) value;
                 styles.Clear();
                 styles.Push(styleFactory.Normal);
-                for (int i = p.activeStyles.Count - 2; i >= 0 ; i--) {
-                    styles.Push(styleFactory.createStyle(p.activeStyles[i], styles.Peek()));
+                if (value is Pos) {
+                    Pos p = (Pos) value;
+                    for (int i = p.activeStyles.Count - 2; i >= 0; i--) {
+                        styles.Push(styleFactory.createStyle(p.activeStyles[i], styles.Peek()));
+                    }
+                    base.Position = p.pos;
+                } else {
+                    underlying.Position = value;
+                    skipForward();
+                    base.Position = underlying.Position;
                 }
-                base.Position = p.pos;
             }
         }
 
@@ -179,24 +185,23 @@ public class FormattedRowProvider : RowProviderBase {
             }
         }
         private void enterStyle(string styleName) {
-            StyleName newStyleName;
-            try {
-                newStyleName = (StyleName) Enum.Parse(typeof(StyleName), styleName, false);
-            } catch (ArgumentException) {
+            if (!Enum.IsDefined(typeof(StyleName), styleName)) {
                 return;
             }
+            StyleName newStyleName = (StyleName) Enum.Parse(typeof(StyleName), styleName, false);
             styles.Push(styleFactory.createStyle(newStyleName, styles.Peek()));
             spaceWidth = textBounds(" ", styles.Peek().Font).Right;
         }
         private void leaveStyle(string styleName) {
-            StyleName currStyleName;
-            try {
-                currStyleName = (StyleName) Enum.Parse(typeof(StyleName), styleName, false);
-            } catch (ArgumentException) {
+            if (!Enum.IsDefined(typeof(StyleName), styleName)) {
                 return;
             }
+            if (styles.Count == 1) {
+                System.Diagnostics.Debug.WriteLine("Trying to leave normal style: " + styleName);
+            }
+            StyleName currStyleName = (StyleName) Enum.Parse(typeof(StyleName), styleName, false);
             if (styles.Peek().Name != currStyleName) {
-                throw new ArgumentException("Unbalanced tags: in " + styles.Peek().Name.ToString()
+                System.Diagnostics.Debug.WriteLine("Unbalanced tags: in " + styles.Peek().Name.ToString()
                     + " trying to close " + styleName);
             }
             styles.Pop();
@@ -281,6 +286,7 @@ public class FormattedRowProvider : RowProviderBase {
             GDI.DeleteObject(hFont);
             return rect;
         }
+
         private interface RowItem {
             int Width { get; }
             int Height { get; }

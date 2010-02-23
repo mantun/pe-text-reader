@@ -14,11 +14,11 @@ namespace TextReader.Parsing {
 public class Bookmark {
     private string text;
     private Position pos;
-    private List<Bookmark> subNodes = new List<Bookmark>();
+    private List<Bookmark> subItems = new List<Bookmark>();
 
     public string Text { get { return text; } }
     public Position Position { get { return pos; } }
-    public ICollection<Bookmark> SubNodes { get { return subNodes.AsReadOnly(); } }
+    public List<Bookmark> SubItems { get { return subItems; } }
 
     private Bookmark() {
     }
@@ -195,7 +195,82 @@ public class SFBFile : BookFile {
         return new FormattedRowProvider(Parser);
     }
     protected override List<Bookmark> buildTOC() {
-        return new List<Bookmark>();
+        var root = new BmkTree();
+        using (var stream = new FileStream(file.FullName, FileMode.Open, FileAccess.Read, FileShare.Read)) {
+            using (var reader = new SeekableStreamReader(stream, true)) {
+                IScrollable<string> lineReader = new LineOfTextTokenizer(new BufferedCharProvider(reader));
+                bool isNew = true;
+                BmkTree current = root;
+                while (true) {
+                    string line = lineReader.Current;
+                    int level = hlevel(line);
+                    if (level > 0) {
+                        current = add(current, line.Substring(level).Trim(), lineReader.Position, level, isNew);
+                        isNew = false;
+                    } else {
+                        isNew = true;
+                    }
+                    if (lineReader.IsLast) {
+                        break;
+                    }
+                    lineReader.ToNext();
+                }
+            }
+        }
+        return root.createBookmark().SubItems;
+    }
+    private int hlevel(string line) {
+        int l = 0;
+        if (line.StartsWith(">")) {
+            for (int i = 0; i < 5; i++) {
+                if (i >= line.Length) {
+                    break;
+                }
+                if (line[i] == '>') {
+                    l++;
+                }
+            }
+        }
+        return l;
+    }
+    private class BmkTree {
+        public BmkTree parent;
+        public List<BmkTree> items = new List<BmkTree>();
+        public string text;
+        public Position pos;
+        public int level;
+        public Bookmark createBookmark() {
+            Bookmark result = new Bookmark(text, pos);
+            foreach (var b in items) {
+                result.SubItems.Add(b.createBookmark());
+            }
+            return result;
+        }
+        public override string ToString() {
+            return text;
+        }
+    }
+    private BmkTree add(BmkTree current, string text, Position pos, int level, bool isNew) {
+        if (!isNew && level == current.level) {
+            current.text += "\n" + text;
+            return current;
+        } else {
+            while (level < current.level) {
+                current = current.parent;
+            }
+            if (level == current.level) {
+                BmkTree sibling = new BmkTree() { parent = current.parent, pos = pos, level = level, text = text };
+                current.parent.items.Add(sibling);
+                return sibling;
+            } 
+            while (level >= current.level + 1) {
+                BmkTree sub = new BmkTree() { parent = current, pos = pos, level = current.level + 1, text = text };
+                current.items.Add(sub);
+                current = sub;
+            }
+            return current;
+        }
     }
 }
+
 }

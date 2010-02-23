@@ -89,24 +89,34 @@ public class CachingScrollable<T> : IScrollable<T> {
     }
     public Position Position { 
         get {
-            return new Pos() { pos = currentNode.Value.pos, index = currentNode.Value.index };
+            if (currentNode != null) {
+                return new Pos() { pos = currentNode.Value.pos, index = currentNode.Value.index };
+            } else {
+                return new Pos() { pos = underlying.Position };
+            }
         }
         set {
-            Pos p = (Pos) value;
-            if (cache.Count > 0 && cache.First.Value.index <= p.index && cache.Last.Value.index >= p.index) {
-                int diff = p.index - currentNode.Value.index;
-                while (diff > 0) {
-                    ToNext();
-                    diff--;
-                }
-                while (diff < 0) {
-                    ToPrev();
-                    diff++;
+            if (value is Pos) {
+                Pos p = (Pos) value;
+                if (cache.Count > 0 && cache.First.Value.index <= p.index && cache.Last.Value.index >= p.index) {
+                    int diff = p.index - currentNode.Value.index;
+                    while (diff > 0) {
+                        ToNext();
+                        diff--;
+                    }
+                    while (diff < 0) {
+                        ToPrev();
+                        diff++;
+                    }
+                } else {
+                    cache.Clear();
+                    currentNode = null;
+                    underlying.Position = p.pos;
                 }
             } else {
                 cache.Clear();
                 currentNode = null;
-                underlying.Position = p.pos;
+                underlying.Position = value;
             }
         }
     }
@@ -167,7 +177,12 @@ public class ArrayScrollable<T> : IScrollable<T> {
     public void ToPrev() { index--; }
     public Position Position { 
         get { return new Pos() { index = index }; }
-        set { index = ((Pos) value).index; }
+        set {
+            if (!(value is Pos)) {
+                throw new ArgumentException("Unsupported position type. Expected: " + typeof(Pos) + ", found: " + value.GetType());
+            }
+            index = ((Pos) value).index; 
+        }
     }
     private class Pos : Position {
         public int index;
@@ -309,13 +324,19 @@ public class SplittingScrollable<T, C> : IScrollable<T> where C : IList<T> {
             return new Pos() { pos = underlying.Position, index = index, underlyingIndex = underlyingIndex };
         }
         set {
-            Pos p = (Pos) value;
-            if (p.underlyingIndex == underlyingIndex) {
-                index = p.index;
+            if (value is Pos) {
+                Pos p = (Pos) value;
+                if (p.underlyingIndex == underlyingIndex) {
+                    index = p.index;
+                } else {
+                    underlying.Position = p.pos;
+                    index = p.index;
+                    underlyingIndex = p.underlyingIndex;
+                }
             } else {
-                underlying.Position = p.pos;
-                index = p.index;
-                underlyingIndex = p.underlyingIndex;
+                underlying.Position = value;
+                index = 0;
+                underlyingIndex = 0;
             }
         }
     }

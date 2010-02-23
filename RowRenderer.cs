@@ -17,9 +17,29 @@ public class RowRenderer {
         this.rows = rowProvider;
     }
 
+    public Position Position {
+        get {
+            return new Pos() { rowOffs = rowPixelOffset, pos = rows.Position };
+        }
+        set {
+            if (value is Pos) {
+                Pos p = (Pos) value;
+                rows.Position = p.pos;
+                rowPixelOffset = p.rowOffs;
+            } else {
+                rows.Position = value;
+                rowPixelOffset = 0;
+            }
+        }
+    }
+    private class Pos : Position {
+        public int rowOffs;
+        public Position pos;
+    }
     public class Result : IDisposable {
         public Image Image;
         public int Offset;
+        public Position position;
         public Row[] Rows;
         public int[] RowOffsets;
         ~Result() {
@@ -30,37 +50,38 @@ public class RowRenderer {
             GC.SuppressFinalize(this);
         }
     }
+    public int Width { get { return width; } set { width = value; } }
+    public int Height { get { return height; } set { height = value; } }
     public Result DrawImage(int pixelDelta) {
-        lock (rows) {
-            pixelDelta = normalizeDelta(pixelDelta);
-            int h = checkBottom(ref pixelDelta);
+        pixelDelta = normalizeDelta(pixelDelta);
+        int h = checkBottom(ref pixelDelta);
 
-            // draw
-            Bitmap image = new Bitmap(width, h);
-            Graphics g = Graphics.FromImage(image);
+        // draw
+        Bitmap image = new Bitmap(width, h);
+        Graphics g = Graphics.FromImage(image);
 
-            Rectangle r = new Rectangle(0, 0, image.Width, image.Height);
-            g.FillRectangle(new SolidBrush(Color.White), r);
+        Rectangle r = new Rectangle(0, 0, image.Width, image.Height);
+        g.FillRectangle(new SolidBrush(Color.White), r);
 
-            List<Row> visibleRows = new List<Row>();
-            List<int> rowOffsets = new List<int>();
-            h = -rowPixelOffset;
-            Position pos = rows.Position;
-            while (h < image.Height) {
-                visibleRows.Add(rows.Current);
-                rowOffsets.Add(h);
-                rows.Current.Draw(g, h);
-                h += rows.Current.Height;
-                if (rows.IsLast) {
-                    break;
-                }
-                rows.ToNext();
+        List<Row> visibleRows = new List<Row>();
+        List<int> rowOffsets = new List<int>();
+        h = -rowPixelOffset;
+        Position pos = rows.Position;
+        while (h < image.Height) {
+            visibleRows.Add(rows.Current);
+            rowOffsets.Add(h);
+            rows.Current.Draw(g, h);
+            h += rows.Current.Height;
+            if (rows.IsLast) {
+                break;
             }
-            rows.Position = pos;
-
-            g.Dispose();
-            return new Result() { Image = image, Offset = pixelDelta, Rows = visibleRows.ToArray(), RowOffsets = rowOffsets.ToArray() };
+            rows.ToNext();
         }
+        rows.Position = pos;
+
+        g.Dispose();
+        return new Result() { Image = image, position = Position, Offset = pixelDelta, 
+            Rows = visibleRows.ToArray(), RowOffsets = rowOffsets.ToArray() };
     }
 
     private int normalizeDelta(int pixelDelta) {

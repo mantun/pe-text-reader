@@ -8,6 +8,7 @@ using TextReader.Parsing;
 using TextReader.ScrollingView;
 using TextReader.TreeBrowse;
 using TextReader.TreeBrowse.FileSystem;
+using TextReader.TreeBrowse.Bookmarks;
 
 namespace TextReader {
 
@@ -16,6 +17,7 @@ class TextForm : System.Windows.Forms.Form {
     private ScrollablePanel panel;
     private BookFile bookFile;
     private MenuItem setBookmarkMenuItem;
+    private MenuItem tocMenuItem;
     private DirectoryInfo lastDir;
 
     public BookFile BookFile {
@@ -27,8 +29,9 @@ class TextForm : System.Windows.Forms.Form {
                 bookFile.Dispose();
             }
             bookFile = value;
+            setBookmarkMenuItem.Enabled = bookFile != null;
+            tocMenuItem.Enabled = bookFile != null;
             if (bookFile != null) {
-                setBookmarkMenuItem.Enabled = true;
                 panel.RowProvider = new CachingRowProvider(bookFile.RowProvider, 300);
                 if (bookFile.Index.Autosave != null) {
                     panel.Position = bookFile.Index.Autosave.Position;
@@ -43,6 +46,7 @@ class TextForm : System.Windows.Forms.Form {
     }
 
     public TextForm() {
+        Text = "PE Text Reader";
         panel = new ScrollablePanel();
         Rectangle r = this.ClientRectangle;
         r.Inflate(-10, -10);
@@ -59,10 +63,13 @@ class TextForm : System.Windows.Forms.Form {
         exitMenuItem.Click += exitClick;
         MenuItem openMenuItem = new MenuItem() { Text = "Open" };
         openMenuItem.Click += openClick;
+        tocMenuItem = new MenuItem() { Text = "TOC", Enabled = false };
+        tocMenuItem.Click += tocClick;
         setBookmarkMenuItem = new MenuItem() { Text = "Set Bookmark Here", Enabled = false };
         setBookmarkMenuItem.Click += setBookmarkClick;
         MenuItem menuRoot = new MenuItem() { Text = "Menu" };
         menuRoot.MenuItems.Add(openMenuItem);
+        menuRoot.MenuItems.Add(tocMenuItem);
         menuRoot.MenuItems.Add(setBookmarkMenuItem);
         menuRoot.MenuItems.Add(exitMenuItem);
 
@@ -121,6 +128,17 @@ class TextForm : System.Windows.Forms.Form {
         return file;
     }
 
+    private void tocClick(object sender, EventArgs e) {
+        using (TreeBrowser browser = new TreeBrowser()) {
+            browser.Current = new BookmarkRootItem(BookFile.Index);
+            browser.ShowDialog();
+            if (browser.Selected == null) {
+                return;
+            }
+            panel.Position = (browser.Selected as BookmarkItem).Bookmark.Position;
+        }
+    }
+
     private void openClick(object sender, EventArgs e) {
         var book = SelectBook();
         if (book != null) {
@@ -150,7 +168,7 @@ class TextForm : System.Windows.Forms.Form {
         Bookmark bookmark;
         lock (panel.RowProvider) {
             int y = 0;
-            bookmark = new Bookmark(n + ": " + panel.RowAt(ref y).Text + "\0x2026", panel.Position);
+            bookmark = new Bookmark(n + ": " + panel.RowAt(ref y).Text + "\u2026", panel.Position);
         }
         BookFile.Index.UserBookmarks.Add(bookmark);
         BookFile.SaveIndex();
@@ -160,7 +178,7 @@ class TextForm : System.Windows.Forms.Form {
         Bookmark bookmark;
         lock (panel.RowProvider) {
             int y = 0;
-            bookmark = new Bookmark("A: " + panel.RowAt(ref y).Text + "\0x2026", panel.Position);
+            bookmark = new Bookmark("A: " + panel.RowAt(ref y).Text + "\u2026", panel.Position);
         }
         bookFile.Index.Autosave = bookmark;
         bookFile.SaveIndex();
