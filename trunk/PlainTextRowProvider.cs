@@ -214,7 +214,7 @@ public class PlainTextRowProvider : RowProviderBase, IDisposable {
         }
         public string Text { get { return text; } }
         public int Height { get { return parent.rowHeight; } }
-        public void Draw(Graphics g, int y) {
+        public void Draw(Graphics g, int y, bool highlighted) {
             GDI.Rect rect = new GDI.Rect(0, y, parent.width, y + parent.rowHeight);
             IntPtr hdc = g.GetHdc();
             IntPtr originalObject = GDI.SelectObject(hdc, parent.hFont);

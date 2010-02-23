@@ -9,19 +9,6 @@ using TextReader.ScrollingView;
 
 namespace TextReader.TreeBrowse.FileSystem {
 
-public class DrawParams {
-    public int Width;
-    public int RowHeight;
-    public int FontHeight;
-    public Font Font;
-    public DrawParams(Font font, int width) {
-        Font = font;
-        Width = width;
-        FontHeight = GDI.FontHeight(Font);
-        RowHeight = GDI.GetSystemMetrics(GDI.SM_CYICON);
-    }
-}
-
 class FileSystemItemsHolder : ItemsHolder {
     private Dictionary<FileSystemInfo, FileRow> createdRows = new Dictionary<FileSystemInfo, FileRow>();
     private DrawParams drawParams;
@@ -100,8 +87,11 @@ class FileRow : Row, IDisposable {
             this.icon = Icon.FromHandle(hIcon);
         }
     }
-    public void Draw(Graphics g, int y) {
+    public void Draw(Graphics g, int y, bool hightlighted) {
         g.DrawLine(new Pen(Color.Gray), 0, y, drawParams.Width, y);
+        if (hightlighted) {
+            g.FillRectangle(new SolidBrush(Color.LightGreen), 0, y + 1, drawParams.Width, drawParams.RowHeight - 1);
+        }
         if (info != null) {
             g.DrawIcon(icon, 0, y + (drawParams.RowHeight - icon.Height) / 2);
             g.DrawString(info.Name, drawParams.Font, new SolidBrush(Color.Black), icon.Width, y + (drawParams.RowHeight - drawParams.FontHeight) / 2);

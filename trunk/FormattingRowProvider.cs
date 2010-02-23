@@ -260,7 +260,7 @@ public class FormattedRowProvider : RowProviderBase {
             }
             public int Height { get { return height; } }
 
-            public void Draw(Graphics g, int y) {
+            public void Draw(Graphics g, int y, bool highlighted) {
                 int w;
                 if (style.Align == ParagraphAlign.Center) {
                     w = (parent.width - width) / 2;

@@ -130,7 +130,7 @@ class TextForm : System.Windows.Forms.Form {
 
     private void tocClick(object sender, EventArgs e) {
         using (TreeBrowser browser = new TreeBrowser()) {
-            browser.Current = new BookmarkRootItem(BookFile.Index);
+            browser.Current = new BookmarkRootItem(BookFile.Index, new DrawParams(browser.Font, browser.Width));
             browser.ShowDialog();
             if (browser.Selected == null) {
                 return;
