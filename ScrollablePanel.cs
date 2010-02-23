@@ -87,18 +87,30 @@ class ScrollablePanel : Panel {
             if (imageProvider == null) {
                 return null;
             }
-            return imageProvider.Position;
+            if (viewStart != null) {
+                return new Pos() { pos = imageProvider.Position, viewStart = (int) viewStart };
+            } else {
+                return imageProvider.Position;
+            }
         }
         set {
             if (imageProvider == null) {
                 return;
             }
-            imageProvider.Position = value;
-            if (viewStart != null) {
-                imageProvider.Offset = -(int) viewStart;
+            if (value is Pos) {
+                Pos p = (Pos) value;
+                imageProvider.Position = p.pos;
+                viewStart = p.viewStart;
+            } else {
+                imageProvider.Position = value;
+                viewStart = null;
             }
             imageProvider.EnqueueRedraw();
         }
+    }
+    private class Pos : Position {
+        public int viewStart;
+        public Position pos;
     }
 
     public void Freeze() {
@@ -426,7 +438,7 @@ class ScrollablePanel : Panel {
                     ready.Close();
                     ready = null;
                 }
-                if (this.rendererResult != null) {
+                if (rendererResult != null) {
                     rendererResult.Dispose();
                     rendererResult = null;
                 }
@@ -510,7 +522,7 @@ class ScrollablePanel : Panel {
             get {
                 lock (this) {
                     if (rendererResult != null) {
-                        return new Pos() { dirtyOffset = dirtyOffset, pos = rendererResult.position };
+                        return new Pos() { dirtyOffset = Offset, pos = rendererResult.position };
                     } else {
                         return null;
                     }

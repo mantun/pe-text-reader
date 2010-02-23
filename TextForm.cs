@@ -83,12 +83,12 @@ class TextForm : System.Windows.Forms.Form {
     }
 
     protected override void OnLoad(EventArgs e) {
+        base.OnLoad(e);
         var book = SelectBook();
         if (book == null) {
             Close();
         }
         BookFile = book;
-        base.OnLoad(e);
     }
 
     public BookFile SelectBook() {
