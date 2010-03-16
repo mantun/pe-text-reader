@@ -11,22 +11,24 @@ class ScrollablePanel : Panel {
     private ImageProvider imageProvider;
     private RowProvider rowProvider;
 
+    private double autoscrollSpeed = 0.03;
+    private bool autoscroll;
     private Brush backgroundBrush = new SolidBrush(Color.White);
     private Brush stripeBrush = new SolidBrush(Color.Gray);
     private int? viewStart;
     private bool mouseDown;
     private int downY;
-    private int downOffs;
+    private int lastY;
     private System.Windows.Forms.Timer timer;
     private LinkedList<MousePos> mousePos = new LinkedList<MousePos>();
     private long downTime;
-    private Queue<Animation> animations = new Queue<Animation>();
+    private Animator animator = new Animator();
 
     private const int TimerIntervalMS = 20;
     private const int SlowDownAcceleration = 1; // px / tick ^ 2
     private const int ElasticForce = 4; // bigger number = weaker force (must be > 1)
     private const int MaxMouseHistoryMS = 100;
-    private const int FlickThreshold = 20; // px
+    private const int FlickThreshold = 100; // px
     private const int ClippingRatio = 3; // offscreen bitmap height / view height
     private const int DragTreshold = 20; // px
     private const int DragTresholdMS = 500;
@@ -113,6 +115,17 @@ class ScrollablePanel : Panel {
         public Position pos;
     }
 
+    public bool Autoscroll {
+        get { return autoscroll; }
+        set {
+            autoscroll = value;
+            if (autoscroll) {
+                animator.ContinuousAnimation = new ConstantSpeedAnimation(autoscrollSpeed * TimerIntervalMS, imageProvider);
+            } else {
+                animator.ContinuousAnimation = null;
+            }
+        }
+    }
     public void Freeze() {
         timer.Enabled = false;
     }
@@ -154,11 +167,7 @@ class ScrollablePanel : Panel {
 
     private void moveTimerTick(object sender, EventArgs e) {
         if (!mouseDown && imageProvider != null) {
-            if (animations.Count > 0) {
-                if (animations.Peek().Step()) {
-                    animations.Dequeue();
-                    imageProvider.EnqueueRedraw();
-                }
+            if (animator.Step(imageProvider)) {
                 Invalidate();
             }
             if (imageProvider.Ready) {
@@ -169,11 +178,11 @@ class ScrollablePanel : Panel {
                         imageProvider.Offset = (int) -viewStart;
                     }
                     if (result.r.Offset < 0 && result.Offset < (int) -viewStart) {
-                        animations.Clear();
-                        animations.Enqueue(new ElasticAnimation((int) -viewStart, () => imageProvider.Offset, (x) => imageProvider.Offset = x));
+                        animator.Reset();
+                        animator.Add(new ElasticAnimation((int) -viewStart, imageProvider));
                     } else if (result.r.Offset > 0 && result.Offset > (int) viewStart) {
-                        animations.Clear();
-                        animations.Enqueue(new ElasticAnimation((int) viewStart, () => imageProvider.Offset, (x) => imageProvider.Offset = x));
+                        animator.Reset();
+                        animator.Add(new ElasticAnimation((int) viewStart, imageProvider));
                     }
                 }
                 Invalidate();
@@ -219,8 +228,9 @@ class ScrollablePanel : Panel {
         if (e.Button == MouseButtons.Left) {
             mouseDown = true;
             downY = e.Y;
-            downOffs = imageProvider.Offset;
-            animations.Clear();
+            lastY = e.Y;
+            animator.Reset();
+            animator.Pause();
             mousePos.AddLast(new MousePos { time = Environment.TickCount, y = e.Y });
             downTime = Environment.TickCount;
         }
@@ -229,7 +239,10 @@ class ScrollablePanel : Panel {
     
     protected override void OnMouseMove(MouseEventArgs e) {
         if (mouseDown) {
-            imageProvider.Offset = downOffs + downY - e.Y;
+            lock (imageProvider) {
+                imageProvider.Offset += lastY - e.Y;
+            }
+            lastY = e.Y;
             mousePos.AddLast(new MousePos { time = Environment.TickCount, y = e.Y });
             Invalidate();
         }
@@ -239,29 +252,34 @@ class ScrollablePanel : Panel {
     protected override void OnMouseUp(MouseEventArgs e) {
         if (e.Button == MouseButtons.Left) {
             mouseDown = false;
+            animator.Resume();
             if (Math.Abs(e.Y - downY) < DragTreshold && Environment.TickCount - downTime < DragTresholdMS) { // is click
                 int y = e.Y;
-                Row row = null;
-                using (var res = imageProvider.Result) {
-                    row = rowAt(ref y, res);
-                    if (row != null) {
-                        int index = Array.IndexOf(res.r.Rows, row);
-                        int rowTop = res.r.RowOffsets[index];
-                        using (Graphics g = Graphics.FromImage(res.r.Image)) {
-                            row.Draw(g, rowTop, true);
-                        }
-                    }
-                }
-                Refresh();
+                Row row = highlightRow(ref y);
                 rowProvider.RowClicked(row, new MouseEventArgs(MouseButtons.Left, 0, e.X, y, 0));
             } else {
-                if (animations.Count == 0 && mousePos.Count != 0) {
+                bool flick = false;
+                if (mousePos.Count != 0) {
                     int distance = mousePos.Last.Value.y - mousePos.First.Value.y;
                     int time = mousePos.Last.Value.time - mousePos.First.Value.time;
                     if (Math.Abs(distance) > FlickThreshold && time > 0) {
                         int speed = -distance * timer.Interval / time;
-                        animations.Enqueue(new InertialAnimation(speed, () => imageProvider.Offset, (x) => imageProvider.Offset = x));
+                        if (Math.Abs(speed) > 10) {
+                            double add = (Math.Abs(speed) - 10) * 0.1;
+                            add *= add;
+                            if (speed > 0) {
+                                speed += (int) add;
+                            } else {
+                                speed -= (int) add;
+                            }
+                        }
+                        animator.Add(new InertialAnimation(speed, imageProvider));
+                        flick = true;
                     }
+                }
+                if (!flick && autoscroll && Environment.TickCount - downTime > 0) {
+                    autoscrollSpeed = (5000 * autoscrollSpeed + downY - e.Y) / (double) (5000 + Environment.TickCount - downTime);
+                    animator.ContinuousAnimation = new ConstantSpeedAnimation(autoscrollSpeed * TimerIntervalMS, imageProvider);
                 }
             }
             imageProvider.EnqueueRedraw();
@@ -270,12 +288,30 @@ class ScrollablePanel : Panel {
         base.OnMouseUp(e);
     }
 
+    private Row highlightRow(ref int y) {
+        Row row = null;
+        using (var res = imageProvider.Result) {
+            row = rowAt(ref y, res);
+            if (row != null) {
+                int index = Array.IndexOf(res.r.Rows, row);
+                int rowTop = res.r.RowOffsets[index];
+                using (Graphics g = Graphics.FromImage(res.r.Image)) {
+                    row.Draw(g, rowTop, true);
+                }
+            }
+        }
+        if (row != null) {
+            Refresh();
+        }
+        return row;
+    }
+
     private void rowProviderContentChanged(int direction) {
         mousePos.Clear();
         if (imageProvider != null) {
             using (var res = imageProvider.Result) {
                 if (res.r != null && direction != 0 && viewStart != null) {
-                    animations.Enqueue(new ChangeContentAnimation(res, Math.Sign(direction), this));
+                    animator.Add(new ChangeContentAnimation(res, Math.Sign(direction), this));
                 }
             }
         }
@@ -292,24 +328,82 @@ class ScrollablePanel : Panel {
         bool Step();
     }
 
-    private class ElasticAnimation : Animation {
-        private int target;
-        private Func<int> getter;
-        private Action<int> setter;
-        public ElasticAnimation(int target, Func<int> getter, Action<int> setter) {
-            this.target = target;
-            this.getter = getter;
-            this.setter = setter;
+    private class Animator {
+        private Queue<Animation> animations = new Queue<Animation>();
+        private Animation continuousAnimation;
+        private bool paused;
+
+        public Animation ContinuousAnimation {
+            get { return continuousAnimation; }
+            set { continuousAnimation = value; }
+        }
+
+        public void Add(Animation animation) {
+            animations.Enqueue(animation);
+        }
+
+        public bool Step(ImageProvider imageProvider) {
+            if (paused) {
+                return false;
+            }
+            if (animations.Count > 0) {
+                if (animations.Peek().Step()) {
+                    animations.Dequeue();
+                    imageProvider.EnqueueRedraw();
+                }
+                return true;
+            } else if (continuousAnimation != null) {
+                if (continuousAnimation.Step()) {
+                    animations.Dequeue();
+                    imageProvider.EnqueueRedraw();
+                }
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        public void Reset() {
+            animations.Clear();
+        }
+
+        public void Pause() {
+            paused = true;
+        }
+
+        public void Resume() {
+            paused = false;
+        }
+    }
+
+    private abstract class OffsetAnimation : Animation {
+        private ImageProvider imageProvider;
+        protected OffsetAnimation(ImageProvider imageProvider) {
+            this.imageProvider = imageProvider;
         }
         public bool Step() {
-            int current = getter();
+            lock (imageProvider) {
+                int current = imageProvider.Offset;
+                bool done = move(ref current);
+                imageProvider.Offset = current;
+                return done;
+            }
+        }
+        protected abstract bool move(ref int current);
+    }
+
+    private class ElasticAnimation : OffsetAnimation {
+        private int target;
+        public ElasticAnimation(int target, ImageProvider imageProvider) : base(imageProvider) {
+            this.target = target;
+        }
+        protected override bool move(ref int current) {
             int distance = (target - current) / ElasticForce;
             if (distance == 0) {
                 current += Math.Sign(target - current);
             } else {
                 current += distance;
             }
-            setter(current);
             if (current == target) {
                 return true;
             }
@@ -317,19 +411,14 @@ class ScrollablePanel : Panel {
        }
     }
     
-    private class InertialAnimation : Animation {
+    private class InertialAnimation : OffsetAnimation {
         private int speed;
         private bool neg;
-        private Func<int> getter;
-        private Action<int> setter;
-        public InertialAnimation(int speed, Func<int> getter, Action<int> setter) {
+        public InertialAnimation(int speed, ImageProvider imageProvider) : base(imageProvider) {
             this.speed = Math.Abs(speed);
             this.neg = speed < 0;
-            this.getter = getter;
-            this.setter = setter;
         }
-        public bool Step() {
-            int current = getter();
+        protected override bool move(ref int current) {
             if (neg) {
                 current -= speed;
             } else {
@@ -339,7 +428,21 @@ class ScrollablePanel : Panel {
             if (speed < 0) {
                 speed = 0;
             }
-            setter(current);
+            return speed == 0;
+        }
+    }
+
+    private class ConstantSpeedAnimation : OffsetAnimation {
+        private double speed;
+        private double deficit;
+        public ConstantSpeedAnimation(double speed, ImageProvider imageProvider) : base(imageProvider) {
+            this.speed = speed;
+        }
+        protected override bool move(ref int current) {
+            double newValue = current + speed + deficit;
+            int n = (int) newValue;
+            deficit = newValue - n;
+            current = n;
             return speed == 0;
         }
     }
@@ -484,7 +587,7 @@ class ScrollablePanel : Panel {
                 lock (this) {
                     if (this.rendererResult != null) {
                         dirtyOffset = value - this.rendererResult.Offset;
-                        if (Math.Abs(dirtyOffset) > this.rendererResult.Image.Height / 2) {
+                        if (Math.Abs(dirtyOffset) > this.rendererResult.Image.Height / ClippingRatio) {
                             EnqueueRedraw();
                         }
                     } else {

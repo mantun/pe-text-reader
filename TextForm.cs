@@ -49,7 +49,7 @@ class TextForm : System.Windows.Forms.Form {
         Text = "PE Text Reader";
         panel = new ScrollablePanel();
         Rectangle r = this.ClientRectangle;
-        r.Inflate(-10, -10);
+        r.Inflate(-6, -6);
         panel.Left = r.Left;
         panel.Top = r.Top;
         panel.Size = new Size(r.Right - r.Left, r.Bottom - r.Top);
@@ -161,14 +161,25 @@ class TextForm : System.Windows.Forms.Form {
     }
 
     private void autoscrollClick(object sender, EventArgs e) {
+        panel.Autoscroll = !panel.Autoscroll;
+        if (panel.Autoscroll) {
+            (sender as MenuItem).Text = "Stop";
+        } else {
+            (sender as MenuItem).Text = "Autoscroll";
+        }
+    }
+
+    private string getTopLineText() {
+        int y = 0;
+        Row row = panel.RowAt(ref y);
+        return row == null ? "" : row.Text;
     }
 
     private void setBookmarkClick(object sender, EventArgs e) {
         int n = BookFile.Index.UserBookmarks.Count + 1;
         Bookmark bookmark;
         lock (panel.RowProvider) {
-            int y = 0;
-            bookmark = new Bookmark(n + ": " + panel.RowAt(ref y).Text + "\u2026", panel.Position);
+            bookmark = new Bookmark(n + ": " + getTopLineText() + "\u2026", panel.Position);
         }
         BookFile.Index.UserBookmarks.Add(bookmark);
         BookFile.SaveIndex();
@@ -177,8 +188,7 @@ class TextForm : System.Windows.Forms.Form {
     private void autosaveBookmark() {
         Bookmark bookmark;
         lock (panel.RowProvider) {
-            int y = 0;
-            bookmark = new Bookmark("A: " + panel.RowAt(ref y).Text + "\u2026", panel.Position);
+            bookmark = new Bookmark("A: " + getTopLineText() + "\u2026", panel.Position);
         }
         bookFile.Index.Autosave = bookmark;
         bookFile.SaveIndex();
