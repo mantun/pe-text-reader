@@ -256,7 +256,9 @@ class ScrollablePanel : Panel {
             if (Math.Abs(e.Y - downY) < DragTreshold && Environment.TickCount - downTime < DragTresholdMS) { // is click
                 int y = e.Y;
                 Row row = highlightRow(ref y);
-                rowProvider.RowClicked(row, new MouseEventArgs(MouseButtons.Left, 0, e.X, y, 0));
+                if (row != null) {
+                    rowProvider.RowClicked(row, new MouseEventArgs(MouseButtons.Left, 0, e.X, y, 0));
+                }
             } else {
                 bool flick = false;
                 if (mousePos.Count != 0) {
