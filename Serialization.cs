@@ -176,11 +176,6 @@ interface Formatter {
     object ReadEnum(Type type);
 }
 
-interface ObjectReader {
-    Type ReadObjectType();
-    object ReadFieldValue(FieldInfo f);
-}
-
 class BinaryStreamFormatter : Formatter {
     Stream s;
     public BinaryStreamFormatter(Stream s) {
