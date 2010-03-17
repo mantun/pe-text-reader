@@ -605,7 +605,6 @@ class ScrollablePanel : Panel {
                     RowRenderer.Result rendererResult;
                     lock (rowProvider) {
                         rendererResult = renderer.DrawImage(offset);
-                        Thread.Sleep(1000);
                     }
                     lock (this) {
                         this.timeToDraw = (int) (Environment.TickCount - time);
