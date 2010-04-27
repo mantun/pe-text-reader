@@ -24,7 +24,8 @@ public enum StyleName {
     Author,
     TableHeading,
     Emphasis,
-    Strong
+    Strong,
+    Strike
 }
 
 public enum ParagraphAlign {
@@ -167,6 +168,9 @@ public class StyleFactory {
             };
             case StyleName.Strong: return new CharacterStyle(style) {
                 Font = toggle(baseStyle.Font, FontStyle.Bold),
+            };
+            case StyleName.Strike: return new CharacterStyle(style) {
+                Font = toggle(baseStyle.Font, FontStyle.Strikeout),
             };
         }
         return Normal;

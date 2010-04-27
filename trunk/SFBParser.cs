@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.Text.RegularExpressions;
 
 using TextReader.Formatting;
 
@@ -31,6 +32,23 @@ public class SFBParser : IScrollable<Token> {
         { "!", StyleName.TableHeading.ToString() },
         { "F", StyleName.Preformatted.ToString() },
         { "S", StyleName.Sign.ToString() }
+    };
+    private static readonly Regex strongStart = new Regex(@"^([^\w\d]*)__(.+)$", RegexOptions.Compiled);
+    private static readonly Regex emphasisStart = new Regex(@"^([^\w\d]*)_(.+)$", RegexOptions.Compiled);
+    private static readonly Regex strikeStart = new Regex(@"^([^\w\d]*)-(.+)$", RegexOptions.Compiled);
+    private static readonly Regex strongEnd = new Regex(@"^(.+)__([^\w\d]*)$", RegexOptions.Compiled);
+    private static readonly Regex emphasisEnd = new Regex(@"^(.+)_([^\w\d]*)$", RegexOptions.Compiled);
+    private static readonly Regex strikeEnd = new Regex(@"^(.+)-([^\w\d]*)$", RegexOptions.Compiled);
+
+    private static readonly IDictionary<Regex, StyleName> charStyleStart = new Dictionary<Regex, StyleName>() {
+        { strongStart, StyleName.Strong },
+        { emphasisStart, StyleName.Emphasis },
+        { strikeStart, StyleName.Strike },
+    };
+    private static readonly IDictionary<Regex, StyleName> charStyleEnd = new Dictionary<Regex, StyleName>() {
+        { strongEnd, StyleName.Strong },
+        { emphasisEnd, StyleName.Emphasis },
+        { strikeEnd, StyleName.Strike },
     };
 
     private IScrollable<Token> tokenScroller;
@@ -72,11 +90,11 @@ public class SFBParser : IScrollable<Token> {
         int lineIndex = 0;
         while (lineIndex < lineText.Length) {
             int i = lineIndex;
-            while (i < lineText.Length && !Char.IsWhiteSpace(lineText[i])) {
+            while (i < lineText.Length && !Char.IsWhiteSpace(lineText, i)) {
                 i++;
             }
             string word = lineText.Substring(lineIndex, i - lineIndex);
-            while (i < lineText.Length && Char.IsWhiteSpace(lineText[i])) {
+            while (i < lineText.Length && Char.IsWhiteSpace(lineText, i)) {
                 i++;
             }
             lineIndex = i;
@@ -87,27 +105,29 @@ public class SFBParser : IScrollable<Token> {
     private IEnumerable<Token> tokenize(string line) {
         var styles = new Stack<StyleName>();
         foreach (string word in words(line)) {
+            if (!word.Contains("_") && !word.Contains("-")) {
+                yield return new Token(word, TokenType.Word);
+                continue;
+            }
+
             string w = word;
-            if (w.StartsWith("__")) {
-                styles.Push(StyleName.Strong);
-                w = w.Substring(2);
-                yield return new Token(StyleName.Strong.ToString(), TokenType.Begin);
-            } else if (w.StartsWith("_")) {
-                styles.Push(StyleName.Emphasis);
-                w = w.Substring(1);
-                yield return new Token(StyleName.Emphasis.ToString(), TokenType.Begin);
+            foreach (var p in charStyleStart) {
+                if (checkRegex(p.Key, ref w)) {
+                    styles.Push(p.Value);
+                    yield return new Token(p.Value.ToString(), TokenType.Begin);
+                }
             }
-            StyleName? c = null;
-            if (w.EndsWith("__")) {
-                w = w.Substring(0, w.Length - 2);
-                c = StyleName.Strong;
-            } else if (w.EndsWith("_")) {
-                w = w.Substring(0, w.Length - 1);
-                c = StyleName.Emphasis;
+            LinkedList<StyleName> endStyles = new LinkedList<StyleName>();
+            foreach (var p in charStyleEnd) {
+                if (checkRegex(p.Key, ref w)) {
+                    endStyles.AddFirst(p.Value);
+                }
             }
+
             yield return new Token(w, TokenType.Word);
-            if (c != null) {
-                while (styles.Count > 0 && styles.Peek() != StyleName.Strong) {
+
+            foreach (var end in endStyles) {
+                while (styles.Count > 0 && styles.Peek() != end) {
                     yield return new Token(styles.Pop().ToString(), TokenType.End);
                 }
                 if (styles.Count > 0) {
@@ -119,6 +139,15 @@ public class SFBParser : IScrollable<Token> {
             yield return new Token(styles.Pop().ToString(), TokenType.End);
         }
     }
+
+    private bool checkRegex(Regex r, ref string s) {
+        var m = r.Match(s);
+        if (m.Success) {
+            s = m.Groups[1].Value + m.Groups[2].Value;
+        }
+        return m.Success;
+    }
+
     public Token Current { get { return tokenScroller.Current; } }
     public bool IsFirst { get { return tokenScroller.IsFirst; } }
     public bool IsLast { get { return tokenScroller.IsLast; } }
