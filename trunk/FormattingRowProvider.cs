@@ -198,6 +198,7 @@ public class FormattedRowProvider : RowProviderBase {
             }
             if (styles.Count == 1) {
                 System.Diagnostics.Debug.WriteLine("Trying to leave normal style: " + styleName);
+                return;
             }
             StyleName currStyleName = (StyleName) Enum.Parse(typeof(StyleName), styleName, false);
             if (styles.Peek().Name != currStyleName) {
